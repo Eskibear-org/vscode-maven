@@ -94,15 +94,7 @@ export class ProjectDataProvider implements TreeDataProvider<TreeItem> {
 
     public async executeGoal(item: ProjectItem, goal: string): Promise<void> {
         if (item) {
-            const cmd: string = [
-                Utils.getMavenExecutable(),
-                "-f",
-                `"${item.abosolutePath}"`,
-                workspace.getConfiguration("maven.executable", Uri.file(item.abosolutePath)).get<string>("options"),
-                goal
-            ].filter((x: string) => x).join(" ");
-            const name: string = `Maven-${item.artifactId}`;
-            VSCodeUI.runInTerminal(cmd, { name });
+            Utils.executeMavenCommand(goal, item.abosolutePath);
         }
     }
 
@@ -154,37 +146,29 @@ export class ProjectDataProvider implements TreeDataProvider<TreeItem> {
         if (!item || !item.abosolutePath) {
             return;
         }
-        const cmdlist: string[] = await Utils.loadCmdHistory(item.abosolutePath);
-        const selectedGoal: string = await window.showQuickPick(cmdlist.concat([ENTRY_NEW_GOALS, ENTRY_OPEN_HIST]), {
-            placeHolder: "Select the custom command ... "
-        });
-        if (selectedGoal === ENTRY_NEW_GOALS) {
-            const inputGoals: string = await window.showInputBox({ placeHolder: "e.g. clean package -DskipTests" });
-            const trimedGoals: string = inputGoals && inputGoals.trim();
-            if (trimedGoals) {
-                await Utils.saveCmdHistory(item.abosolutePath, Utils.withLRUItemAhead(cmdlist, trimedGoals));
-                const cmd: string = [
-                    Utils.getMavenExecutable(),
-                    workspace.getConfiguration("maven.executable", Uri.file(item.abosolutePath)).get<string>("options"),
-                    trimedGoals,
-                    "-f",
-                    `"${item.abosolutePath}"`
-                ].filter((x: string) => x).join(" ");
-                VSCodeUI.runInTerminal(cmd, { name: `Maven-${item.artifactId}` });
-            }
-        } else if (selectedGoal === ENTRY_OPEN_HIST) {
-            const historicalFilePath: string = Utils.getCommandHistoryCachePath(item.abosolutePath);
-            window.showTextDocument(Uri.file(historicalFilePath));
-        } else if (selectedGoal) {
-            await Utils.saveCmdHistory(item.abosolutePath, Utils.withLRUItemAhead(cmdlist, selectedGoal));
-            const cmd: string = [
-                Utils.getMavenExecutable(),
-                workspace.getConfiguration("maven.executable", Uri.file(item.abosolutePath)).get<string>("options"),
-                selectedGoal,
-                "-f",
-                `"${item.abosolutePath}"`
-            ].filter((x: string) => x).join(" ");
-            VSCodeUI.runInTerminal(cmd, { name: `Maven-${item.artifactId}` });
+        const inputGoals: string = await window.showInputBox({ placeHolder: "e.g. clean package -DskipTests" });
+        const trimedGoals: string = inputGoals && inputGoals.trim();
+        if (trimedGoals) {
+            Utils.executeMavenCommand(trimedGoals, item.abosolutePath);
         }
     }
+
+    public async historicalGoals(): Promise<void> {
+        const selected: IHistory = await VSCodeUI.getQuickPick(
+            Utils.getLRUCommands(),
+            (x: IHistory) => x.command,
+            null,
+            (x: IHistory) => x.pomfile,
+            { placeHolder: "Select from history ... " }
+        );
+
+        const command: string = selected.command;
+        const pomfile: string = selected.pomfile;
+        Utils.executeMavenCommand(command, pomfile);
+    }
+}
+
+interface IHistory {
+    command: string;
+    pomfile: string;
 }

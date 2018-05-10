@@ -7,11 +7,12 @@ import * as md5 from "md5";
 import * as minimatch from "minimatch";
 import * as os from "os";
 import * as path from "path";
-import { ExtensionContext, extensions, workspace } from 'vscode';
+import { ExtensionContext, extensions, Uri, workspace } from 'vscode';
 import * as xml2js from "xml2js";
 import { Archetype } from "./model/Archetype";
 import { ProjectItem } from "./model/ProjectItem";
 import { IArchetype, IArchetypeCatalogRoot, IArchetypes, IPomRoot } from "./model/XmlSchema";
+import { VSCodeUI } from "./VSCodeUI";
 
 export namespace Utils {
     let EXTENSION_PUBLISHER: string;
@@ -214,5 +215,27 @@ export namespace Utils {
     export function getMavenExecutable(): string {
         const mavenPath: string = workspace.getConfiguration("maven.executable").get<string>("path");
         return mavenPath ? `"${mavenPath}"` : "mvn";
+    }
+
+    export function executeMavenCommand(command: string, pomfile: string): void {
+        const fullCommand: string = [
+            Utils.getMavenExecutable(),
+            command.trim(),
+            "-f",
+            `"${pomfile}"`,
+            workspace.getConfiguration("maven.executable", Uri.file(pomfile)).get<string>("options")
+        ].filter((x: string) => x).join(" ");
+        const name: string = "Maven";
+        VSCodeUI.runInTerminal(fullCommand, { name });
+        updateHistory(command, pomfile);
+    }
+
+    export async function getLRUCommands(): Promise<{command: string, pomfile: string}[]> {
+        return [];
+    }
+
+    function updateHistory(command: string, pomfile: string): void {
+        // tslint:disable-next-line:no-console
+        console.log(command + pomfile);
     }
 }
